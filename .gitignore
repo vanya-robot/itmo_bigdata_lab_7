@@ -1,0 +1,24 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual env
+.venv/
+
+# Data
+data/raw/
+data/processed/
+data/exports/
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# Spark / Java
+derby.log
+metastore_db/
+spark-warehouse/
+
+src/test_connection.py
+src/io_sources/local_io.py
