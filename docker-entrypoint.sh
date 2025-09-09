@@ -3,19 +3,11 @@ set -euo pipefail
 
 echo "Entrypoint: preparing environment"
 
-CSV_PATH="src/sql/source_data.csv"
-HDFS_PATH="hdfs:///data/raw/source_data"
+HDFS_INPUT="hdfs:///app/sql/source_data.csv"
 
-if [ -f "$CSV_PATH" ]; then
-    echo "Found $CSV_PATH — uploading via Spark to $HDFS_PATH"
-    spark-submit --master local[2] src/utils/uploader.py "$CSV_PATH" "$HDFS_PATH"
-else
-    echo "CSV file $CSV_PATH not found — skipping upload"
-fi
+echo "Step 1: Running Scala ETL job and passing to Python"
+spark-submit --master local[2] target/scala-2.12/datamartproject_2.12-0.1.jar \
+"$HDFS_INPUT" | python3 src/main.py
 
-echo "Starting lab7 datamart+model job"
-
-spark-submit --master local[2] src/datamart/DataMart.scala "$HDFS_PATH"
-
-echo "DataMart+Model job finished"
+echo "All jobs finished"
 exit 0
