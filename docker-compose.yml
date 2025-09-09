@@ -17,4 +17,3 @@ services:
       - postgres
     volumes:
       - ./src:/app/src
-    restart: unless-stopped
