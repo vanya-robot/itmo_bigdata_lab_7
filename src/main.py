@@ -1,71 +1,40 @@
-import uuid
 import time
 from src.utils.logging import get_logger
-from src.io_sources.postgres_io import PostgresIO
 from src.predict import Predictor
-from src.config import AppConfig, PostgresConfig, SparkConfig
+from src.config import SparkConfig, AppConfig
 from pyspark.sql import functions as F
-import psycopg2
-
 
 logger = get_logger(__name__)
 
 
 def run():
-    pg_config = PostgresConfig()
-    app_config = AppConfig()
-    spark_config = SparkConfig()
+    app_cfg = AppConfig()
+    spark_cfg = SparkConfig()
 
-    pg = PostgresIO(pg_config)
+    spark = spark_cfg.get_spark_session()
 
-    logger.info("Starting prediction run")
-    spark = spark_config.get_spark_session()
+    input_path = app_cfg.processed_input_path or "hdfs:///data/mart/processed.parquet"
+    output_path = app_cfg.predictions_output_path or "hdfs:///data/predictions/preds.parquet"
 
-    # read source data
-    logger.info(f"Reading source table: {pg_config.table_source}")
-    df = pg.read_table(spark, pg_config.table_source)
+    logger.info(f"Reading processed data from {input_path}")
+    df = spark.read.parquet(input_path)
+    logger.info(f"Loaded {df.count()} rows of processed data")
 
-    logger.info(f"Loaded {df.count()} rows from Postgres")
+    logger.info(f"Loading model from {app_cfg.model_path}")
+    predictor = Predictor(app_cfg.model_path)
 
-    # load model
-    logger.info(f"Loading model from: {app_config.model_path}")
-    predictor = Predictor(app_config.model_path)
-
-    # run inference
     logger.info("Running inference")
-    result_df = predictor.infer(df)
+    preds = predictor.infer(df)
 
-    run_id = str(uuid.uuid4())
     run_ts = time.strftime("%Y-%m-%d %H:%M:%S")
-
-    # prepare predictions to save
-    preds = result_df.withColumn("run_id", F.lit(run_id))
     preds = preds.withColumn("run_ts", F.lit(run_ts))
 
-    # save predictions
-    logger.info(f"Saving predictions to: {pg_config.table_predictions}")
-    pg.write_table(preds, pg_config.table_predictions)
+    logger.info(f"Saving predictions to {output_path}")
+    preds.write.mode("overwrite").parquet(output_path)
 
-    logger.info("Prediction run completed")
+    logger.info("Predictions sample:")
+    preds.show(10, False)
 
-    logger.info("Checking predictions table directly in Postgres")
-    conn = psycopg2.connect(
-        host=pg_config.host,
-        port=pg_config.port,
-        user=pg_config.user,
-        password=pg_config.password,
-        database=pg_config.database
-    )
-    cur = conn.cursor()
-    cur.execute(f"SELECT * FROM {pg_config.table_predictions};")
-    rows = cur.fetchall()
-    logger.info(f"Found {len(rows)} rows in predictions:")
-    for row in rows:
-        print(row)
-    cur.close()
-    conn.close()
-
-    logger.info("Shutting down Spark session")
     spark.stop()
 
 
