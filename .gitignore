@@ -22,3 +22,10 @@ spark-warehouse/
 
 src/test_connection.py
 src/io_sources/local_io.py
+
+project/
+target/
+datanode/
+namenode/
+
+.bsp/
