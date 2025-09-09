@@ -22,7 +22,7 @@ services:
       - hdfs_datanode:/hadoop/dfs/data
 
   spark:
-    image: bitnami/spark:latest
+    build: .
     container_name: spark
     depends_on:
       - namenode
