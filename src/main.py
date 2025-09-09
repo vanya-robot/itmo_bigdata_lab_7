@@ -2,7 +2,7 @@ import uuid
 import time
 from src.utils.logging import get_logger
 from src.io_sources.postgres_io import PostgresIO
-from src.predict import load_model, infer
+from src.predict import Predictor
 from src.config import AppConfig, PostgresConfig, SparkConfig
 from pyspark.sql import functions as F
 import psycopg2
@@ -29,11 +29,11 @@ def run():
 
     # load model
     logger.info(f"Loading model from: {app_config.model_path}")
-    model = load_model(app_config.model_path)
+    predictor = Predictor(app_config.model_path)
 
     # run inference
     logger.info("Running inference")
-    result_df = infer(model, df)
+    result_df = predictor.infer(df)
 
     run_id = str(uuid.uuid4())
     run_ts = time.strftime("%Y-%m-%d %H:%M:%S")
