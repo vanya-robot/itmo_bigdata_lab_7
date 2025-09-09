@@ -5,6 +5,7 @@ from src.io_sources.postgres_io import PostgresIO
 from src.predict import load_model, infer
 from src.config import AppConfig, PostgresConfig, SparkConfig
 from pyspark.sql import functions as F
+import psycopg2
 
 
 logger = get_logger(__name__)
@@ -47,14 +48,25 @@ def run():
 
     logger.info("Prediction run completed")
 
-    # keep application alive for inspection
-    logger.info("Application will remain running for inspection. To stop, terminate the container.")
-    try:
-        while True:
-            time.sleep(60)
-    except KeyboardInterrupt:
-        logger.info("Shutting down")
-        spark.stop()
+    logger.info("Checking predictions table directly in Postgres")
+    conn = psycopg2.connect(
+        host=pg_config.host,
+        port=pg_config.port,
+        user=pg_config.user,
+        password=pg_config.password,
+        database=pg_config.database
+    )
+    cur = conn.cursor()
+    cur.execute(f"SELECT * FROM {pg_config.table_predictions};")
+    rows = cur.fetchall()
+    logger.info(f"Found {len(rows)} rows in predictions:")
+    for row in rows:
+        print(row)
+    cur.close()
+    conn.close()
+
+    logger.info("Shutting down Spark session")
+    spark.stop()
 
 
 if __name__ == "__main__":
