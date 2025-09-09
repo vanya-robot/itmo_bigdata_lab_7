@@ -1,27 +1,46 @@
 services:
   namenode:
     image: apache/hadoop:3.4.1
-    container_name: hn
+    container_name: namenode
     hostname: namenode
+    user: root
     environment:
-      - CLUSTER_NAME=test
-    ports:
-      - "9870:9870"
+      - HADOOP_HOME=/opt/hadoop
+      - HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop
     volumes:
-      - hdfs_namenode:/hadoop/dfs/name
+      - ./namenode:/opt/hadoop/data/nameNode
+      - ./config:/opt/hadoop/etc/hadoop
+      - ./start-hdfs.sh:/start-hdfs.sh
+    command: [ "/bin/bash", "/start-hdfs.sh" ]
+    ports:
+      - "9870:9870"   # Web UI NameNode
+      - "9000:9000"   # RPC NameNode
+    networks:
+      hdfs_network:
+        ipv4_address: 172.30.0.2
+    restart: always
 
   datanode:
     image: apache/hadoop:3.4.1
-    container_name: dn
+    container_name: datanode
     hostname: datanode
+    user: root
     environment:
-      - SERVICE_PRECONDITION=namenode:9870
+      - HADOOP_HOME=/opt/hadoop
+      - HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop
+    volumes:
+      - ./datanode:/opt/hadoop/data/dataNode
+      - ./config:/opt/hadoop/etc/hadoop
+      - ./src/sql:/app/sql
+      - ./init-datanode.sh:/init-datanode.sh
+      - ./config/log4j.properties:/opt/hadoop/etc/hadoop/log4j.properties
+    command: [ "/bin/bash", "/init-datanode.sh" ]
     depends_on:
       - namenode
-    ports:
-      - 9864:9864
-    volumes:
-      - hdfs_datanode:/hadoop/dfs/data
+    networks:
+      hdfs_network:
+        ipv4_address: 172.30.0.3
+    restart: always
 
   spark:
     build: .
@@ -35,6 +54,9 @@ services:
     tty: true
     stdin_open: true
 
-volumes:
-  hdfs_namenode:
-  hdfs_datanode:
+networks:
+  hdfs_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
