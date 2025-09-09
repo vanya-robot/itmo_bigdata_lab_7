@@ -1,19 +1,21 @@
 services:
   namenode:
-    image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
+    image: apache/hadoop:3.4.1
     container_name: hn
+    hostname: namenode
     environment:
       - CLUSTER_NAME=test
     ports:
-      - 9870:9870
+      - "9870:9870"
     volumes:
       - hdfs_namenode:/hadoop/dfs/name
 
   datanode:
-    image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    image: apache/hadoop:3.4.1
     container_name: dn
+    hostname: datanode
     environment:
-      - SERVICE_PRECONDITION=hn:9870
+      - SERVICE_PRECONDITION=namenode:9870
     depends_on:
       - namenode
     ports:
@@ -29,7 +31,9 @@ services:
       - datanode
     volumes:
       - ./src:/app/src
-    entrypoint: ["/bin/bash", "-c", "cd /app && tail -f /dev/null"]
+    working_dir: /app
+    tty: true
+    stdin_open: true
 
 volumes:
   hdfs_namenode:
