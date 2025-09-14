@@ -1,6 +1,6 @@
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.ml.feature.Imputer
 
 object DataMart {
   def main(args: Array[String]): Unit = {
@@ -11,28 +11,39 @@ object DataMart {
       .getOrCreate()
 
     try {
+      val inputPath = args(0)
+      val outputPath = if (args.length > 1) args(1) else "/app/processed"
+
+      // Читаем CSV
       val df = spark.read
         .option("header", "true")
         .option("inferSchema", "true")
-        .csv(args(0))
+        .csv(inputPath)
 
-      val processed = df.select(df.columns.map(c =>
-        when(col(c) === -1, null).otherwise(col(c)).alias(c)
-      ): _*)
+      val featureCols = Array("energy_100g", "fat_100g", "carbohydrates_100g", "proteins_100g", "sugars_100g")
 
-      // Регистрируем как временную таблицу и кэшируем
-      processed.createOrReplaceTempView("cached_datamart")
-      spark.sql("CACHE TABLE cached_datamart")
-      
-      // Ждем завершения кэширования
-      spark.sql("SELECT COUNT(*) FROM cached_datamart").show()
-      
-      println("DATA_CACHED: true")
-      println("TABLE_NAME: cached_datamart")
-      
-      // Долгое ожидание для Python скрипта
-      Thread.sleep(60000)
-      
+      // Заменяем отрицательные на null
+      var processed = df
+      for (c <- featureCols) {
+        processed = processed.withColumn(c, when(col(c) < 0, null).otherwise(col(c)))
+      }
+
+      // Impute пропусков средним
+      val imputer = new Imputer()
+        .setInputCols(featureCols)
+        .setOutputCols(featureCols)
+        .setStrategy("mean")
+      processed = imputer.fit(processed).transform(processed)
+
+      // Сохраняем только исходные числовые колонки + id, без features/scaled_features
+      val toSaveCols = Array("id") ++ featureCols
+      processed.select(toSaveCols.head, toSaveCols.tail: _*)
+        .write.mode("overwrite")
+        .option("header", "true")
+        .csv(outputPath)
+
+      println(s"DATA_SAVED: true")
+      println(s"OUTPUT_PATH: $outputPath")
     } finally {
       spark.stop()
     }
