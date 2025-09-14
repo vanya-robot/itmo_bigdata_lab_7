@@ -12,7 +12,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt python-dotenv
 
 COPY src/ src/
-COPY datamart/datamartproject/target/scala-2.13/datamart-fat.jar .
+COPY datamart/datamartproject/target/scala-2.13/datamart-csv-fat.jar .
 COPY .env .
 
 # пример CSV
