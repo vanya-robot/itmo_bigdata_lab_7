@@ -1,24 +1,19 @@
-import sys
-from pyspark.sql import SparkSession
+import os
+from src.config import SparkConfig, AppConfig
 
-def main():
-    if len(sys.argv) != 3:
-        print("Usage: uploader.py <local_csv_path> <hdfs_target_path>")
-        sys.exit(1)
+def upload_to_hdfs():
+    app_cfg = AppConfig()
+    spark_cfg = SparkConfig()
+    spark = spark_cfg.get_spark_session()
 
-    local_path = sys.argv[1]
-    hdfs_path = sys.argv[2]
+    print(f"Читаем локальный файл: {app_cfg.source_file}")
+    df = spark.read.option("header", "true").csv(app_cfg.source_file)
 
-    spark = SparkSession.builder.appName("CSVUploader").getOrCreate()
+    print(f"Записываем в HDFS: {app_cfg.hdfs_path}")
+    # перезаписываем файл в HDFS
+    df.write.mode("overwrite").option("header", "true").csv(app_cfg.hdfs_path)
 
-    print(f"Reading local CSV from {local_path}")
-    df = spark.read.csv(local_path, header=True, inferSchema=True)
-
-    print(f"Writing DataFrame to HDFS path {hdfs_path}")
-    df.write.mode("overwrite").parquet(hdfs_path)
-
-    print("Upload finished.")
-    spark.stop()
+    print("Файл успешно загружен в HDFS")
 
 if __name__ == "__main__":
-    main()
+    upload_to_hdfs()
