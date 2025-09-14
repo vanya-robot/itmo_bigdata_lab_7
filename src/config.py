@@ -13,6 +13,7 @@ class SparkConfig:
     executor_cores: str = os.getenv("SPARK_EXECUTOR_CORES", "1")
     num_executors: str = os.getenv("SPARK_NUM_EXECUTORS", "1")
     java_opts: str = os.getenv("SPARK_JAVA_OPTS", "-Dfile.encoding=UTF-8")
+    default_fs: str = os.getenv("SPARK_DEFAULT_FS", "hdfs://namenode:9000")
 
     def get_spark_session(self) -> SparkSession:
         builder = SparkSession.builder.master(self.master).appName("lab7_datamart_model")
@@ -23,12 +24,13 @@ class SparkConfig:
         builder = builder.config("spark.executor.instances", self.num_executors)
         builder = builder.config("spark.driver.extraJavaOptions", self.java_opts)
         builder = builder.config("spark.executor.extraJavaOptions", self.java_opts)
+        #builder = builder.config("spark.hadoop.fs.defaultFS", self.default_fs)
         return builder.getOrCreate()
 
 
 @dataclass
 class AppConfig:
     model_path: str = os.getenv("MODEL_PATH", "src/models/kmeans_model")
-    processed_input_path: str = os.getenv("PROCESSED_INPUT_PATH", "hdfs:///data/mart/processed.parquet")
-    predictions_output_path: str = os.getenv("PREDICTIONS_OUTPUT_PATH", "hdfs:///data/predictions/preds.parquet")
+    source_file: str = os.getenv("SOURCE_FILE", "src/sql/source_data.csv")
+    hdfs_path: str = os.getenv("HDFS_RAW_PATH", "hdfs://namenode:9000/app/sql/source_data.csv")
     spark: SparkConfig = field(default_factory=SparkConfig)
