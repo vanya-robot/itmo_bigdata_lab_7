@@ -6,11 +6,11 @@ lazy val root = project
   .in(file("."))
   .settings(
     name := "datamartproject",
-    version := "0.1.0-SNAPSHOT",
+    version := "0.2.0-SNAPSHOT",
     scalaVersion := scala213Version,  // Теперь 2.13!
 
     // Настройки assembly
-    assembly / assemblyJarName := "datamart-fat.jar",
+    assembly / assemblyJarName := "datamart-csv-fat.jar",
     assembly / mainClass := Some("DataMart"),
     
     assembly / assemblyMergeStrategy := {
@@ -24,6 +24,7 @@ lazy val root = project
       "org.scalameta" %% "munit" % "1.0.0" % Test,
       "org.apache.spark" %% "spark-core" % sparkVersion,
       "org.apache.spark" %% "spark-sql" % sparkVersion,
-      "org.apache.hadoop" % "hadoop-client" % hadoopVersion
+      "org.apache.hadoop" % "hadoop-client" % hadoopVersion,
+      "org.apache.spark" %% "spark-mllib" % sparkVersion
     )
   )
