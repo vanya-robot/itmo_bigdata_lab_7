@@ -1,73 +1,45 @@
-import uuid
-import time
-from src.utils.logging import get_logger
-from src.io_sources.postgres_io import PostgresIO
-from src.predict import Predictor
-from src.config import AppConfig, PostgresConfig, SparkConfig
+import pandas as pd
+from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-import psycopg2
-
-
-logger = get_logger(__name__)
-
+from src.config import SparkConfig, AppConfig
+from src.predict import Predictor
+import time
+import os
 
 def run():
-    pg_config = PostgresConfig()
-    app_config = AppConfig()
-    spark_config = SparkConfig()
+    # Загружаем конфиги
+    app_cfg = AppConfig()
+    spark_cfg = SparkConfig()
+    spark = spark_cfg.get_spark_session()
 
-    pg = PostgresIO(pg_config)
+    # Ждем немного для кэширования
+    time.sleep(5)
+    
+    # Прямой доступ к кэшированной таблице
+    table_name = "cached_datamart"
+    
+    if spark.catalog.tableExists(table_name) and spark.catalog.isCached(table_name):
+        df = spark.table(table_name)
+        print(f"Successfully retrieved cached table: {table_name}")
+    else:
+        raise Exception(f"Table {table_name} not found or not cached")
+    
+    # Основная логика
+    predictor = Predictor(app_cfg.model_path)
+    preds = predictor.infer(df)
 
-    logger.info("Starting prediction run")
-    spark = spark_config.get_spark_session()
-
-    # read source data
-    logger.info(f"Reading source table: {pg_config.table_source}")
-    df = pg.read_table(spark, pg_config.table_source)
-
-    logger.info(f"Loaded {df.count()} rows from Postgres")
-
-    # load model
-    logger.info(f"Loading model from: {app_config.model_path}")
-    predictor = Predictor(app_config.model_path)
-
-    # run inference
-    logger.info("Running inference")
-    result_df = predictor.infer(df)
-
-    run_id = str(uuid.uuid4())
-    run_ts = time.strftime("%Y-%m-%d %H:%M:%S")
-
-    # prepare predictions to save
-    preds = result_df.withColumn("run_id", F.lit(run_id))
+    run_ts = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
     preds = preds.withColumn("run_ts", F.lit(run_ts))
 
-    # save predictions
-    logger.info(f"Saving predictions to: {pg_config.table_predictions}")
-    pg.write_table(preds, pg_config.table_predictions)
-
-    logger.info("Prediction run completed")
-
-    logger.info("Checking predictions table directly in Postgres")
-    conn = psycopg2.connect(
-        host=pg_config.host,
-        port=pg_config.port,
-        user=pg_config.user,
-        password=pg_config.password,
-        database=pg_config.database
-    )
-    cur = conn.cursor()
-    cur.execute(f"SELECT * FROM {pg_config.table_predictions};")
-    rows = cur.fetchall()
-    logger.info(f"Found {len(rows)} rows in predictions:")
-    for row in rows:
-        print(row)
-    cur.close()
-    conn.close()
-
-    logger.info("Shutting down Spark session")
+    # Сохраняем результаты
+    output_path = os.getenv('HDFS_PREDICTIONS_PATH', '/app/preds.txt')
+    if output_path.startswith('hdfs://'):
+        preds.write.mode('overwrite').csv(output_path)
+    else:
+        preds.toPandas().to_csv(output_path, index=False)
+    
+    print(f"Results saved to: {output_path}")
     spark.stop()
-
 
 if __name__ == "__main__":
     run()

@@ -1,9 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "Starting lab6 pipeline container"
+echo "Entrypoint: preparing environment"
 
-# run the main pipeline (this script should return after work is done)
-python src/main.py || true
+HDFS_INPUT="hdfs:///app/sql/source_data.csv"
 
-echo "Pipeline finished."
+echo "Step 1: Running Scala ETL job and passing to Python"
+spark-submit --master local[2] target/scala-2.12/datamartproject_2.12-0.1.jar \
+"$HDFS_INPUT" | python3 src/main.py
+
+echo "All jobs finished"
+exit 0

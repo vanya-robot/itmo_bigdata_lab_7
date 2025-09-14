@@ -1,19 +1,69 @@
 services:
-  postgres:
-    image: postgres:14
-    container_name: lab6_postgres
-    restart: always
-    env_file: .env
-    ports:
-      - "5433:5432"
+  namenode:
+    image: apache/hadoop:3.4.1
+    container_name: namenode
+    hostname: namenode
+    user: root
+    environment:
+      - HADOOP_HOME=/opt/hadoop
+      - HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop
     volumes:
-      - ./src/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./namenode:/opt/hadoop/data/nameNode
+      - ./config:/opt/hadoop/etc/hadoop
+      - ./start-hdfs.sh:/start-hdfs.sh
+    command: [ "/bin/bash", "/start-hdfs.sh" ]
+    ports:
+      - "9870:9870"   # Web UI NameNode
+      - "9000:9000"   # RPC NameNode
+    networks:
+      hdfs_network:
+        ipv4_address: 172.30.0.2
+    restart: always
+    logging:
+      driver: "none"
+
+  datanode:
+    image: apache/hadoop:3.4.1
+    container_name: datanode
+    hostname: datanode
+    user: root
+    environment:
+      - HADOOP_HOME=/opt/hadoop
+      - HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop
+    volumes:
+      - ./datanode:/opt/hadoop/data/dataNode
+      - ./config:/opt/hadoop/etc/hadoop
+      - ./src/sql:/app/sql
+      - ./init-datanode.sh:/init-datanode.sh
+      - ./config/log4j.properties:/opt/hadoop/etc/hadoop/log4j.properties
+    command: [ "/bin/bash", "/init-datanode.sh" ]
+    depends_on:
+      - namenode
+    networks:
+      hdfs_network:
+        ipv4_address: 172.30.0.3
+    restart: always
+    logging:
+      driver: "none"
 
   spark:
     build: .
-    container_name: lab6_spark
-    env_file: .env
+    container_name: spark
     depends_on:
-      - postgres
+      - namenode
+      - datanode
     volumes:
       - ./src:/app/src
+    working_dir: /app
+    tty: true
+    stdin_open: true
+    networks:
+      hdfs_network:
+        ipv4_address: 172.30.0.4
+
+networks:
+  hdfs_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
